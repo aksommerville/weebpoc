@@ -3,7 +3,7 @@ all:
 .SECONDARY:
 PRECMD=echo "  $@" ; mkdir -p $(@D) ;
 
-CC:=gcc -c -MMD -O3 -Isrc -Werror -Wimplicit -Wno-pointer-sign -Wno-parentheses -DUSE_macos=1
+CC:=gcc -c -MMD -O3 -Isrc -Werror -Wimplicit -Wno-pointer-sign -Wno-parentheses
 LD:=gcc
 LDPOST:=
 
@@ -22,7 +22,7 @@ $(EXE_MIN):$(OFILES_MIN);$(PRECMD) $(LD) -o$@ $^ $(LDPOST)
 
 SRCFILES_WWW:=$(filter src/www/%,$(SRCFILES))
 $(INDEXHTML):$(SRCFILES_WWW) $(EXE_MIN);$(PRECMD) $(EXE_MIN) -o$@ src/www/index.html
-$(ZIP):$(INDEXHTML);$(PRECMD) zip -jqX $@ $^ && echo "$@: $$(stat -f%z $@) bytes"
+$(ZIP):$(INDEXHTML);$(PRECMD) zip -jqX $@ $^ && echo "$@: $$(stat -c%s $@) bytes"
 
 # 'make run' to serve the input files, prefer for high-frequency dev work.
 run:;http-server src/www -c-1

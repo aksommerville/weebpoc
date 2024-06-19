@@ -100,6 +100,7 @@ void sr_encoder_cleanup(struct sr_encoder *encoder);
 
 int sr_encoder_require(struct sr_encoder *encoder,int addc);
 int sr_encoder_terminate(struct sr_encoder *encoder);
+int sr_encoder_replace(struct sr_encoder *encoder,int p,int c,const void *src,int srcc);
 
 int sr_encode_raw(struct sr_encoder *encoder,const void *src,int srcc);
 int sr_encode_fmt(struct sr_encoder *encoder,const char *fmt,...);

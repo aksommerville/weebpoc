@@ -12,35 +12,34 @@ Give `min` an HTML template and it produces a single flattened and minified HTML
 
 `<img>` and `<script>` tags can refer to relative files, and get expanded in place.
 
-I'm not doing the same for `<link rel="stylesheet">`, only because I expect there to be only a very small amount of CSS.
-Write your CSS directly in the template, and we'll minify it in place.
+For the Javascript minifier, I'm using a fairly light touch:
+- Whitespace and comments are eliminated, obviously.
+- Imports are inlined in the order we find them. Don't depend on sequencing of a file's initial run.
+- Most identifiers are preserved but aliased with something shorter.
+- - eg `this.abra.cadabra();` becomes `const [a,b]="abra,cadabra".split(); ... this[a][b]();`.
+- If the first appearance of an identifier is an obvious declaration (const, let, class, function), we replace its name hard.
+
+TODO: We're not able to replace function parameters. What would that take?
+
+We're not doing any generic tree-shaking. It does happen at the file level -- if you never import a file, it gets dropped.
 
 ## Standard Violations
 
 No doubt we're going to violate standards in hundreds of ways I don't even notice.
 But I'll list what I know.
 
-- HTML whitespace may be eliminated. (fore and aft, or whitespace-only nodes)
-- HTML singleton tags *must* be marked with a trailing slash.
-- Regex literals will be restricted (TODO determine exactly how)
-- All globals must use 'window.' in the input.
-- All instance members must be initialized in the constructor.
-- Non-G0 characters in identifiers will be treated as punctuation.
-- Order of static initialization is nondeterministic. Don't depend on static initialization.
-- Imports must be phrased `import { IDENTIFIERS... } from "RELATIVE_PATH";`
-- HTML should not contain any real DOM content. We're definitely not doing a full HTML parser.
-- CDATA sections are not acknowledged.
-- HTML tag and attribute names must be lowercase.
-- HTML character entities pass thru as text, but must not appear in anything machine-readable. (eg `<script src>`)
-- Extra attributes on link, style, script, or img tags will usually be lost when we rewrite them.
-- HTML attributes must be phrased like XML: `key="value"`, no space, double-quote only.
-- <script> tags can't share globals directly. You have to explicitly assign things to window to share them.
-- Imports must end with a string, and the string is all we care about. No default or renaming of imports.
-- Dotted member references must not have space or comments between the dot and the key.
-- Class declarations only permitted at top level of a file.
-- No async/await.
-- No generator functions.
-- No "var".
-- Semicolons are mandatory.
-
-...fuck it, this is crazy. I can't write a full AST minifier for Javascript.
+- *HTML*
+- - Leading and trailing whitespace may be eliminated from text nodes.
+- - Singleton tags must be marked with a trailing slash.
+- - Behavior around a robust DOM is undefined. I'm assuming there will be minimal HTML.
+- - CDATA not supported.
+- - Tag and attribute names must be lower-case.
+- - Character entities not permitted in anything machine-readable.
+- - Extra attributes on `link`, `style`, `script`, and `img` may be lost.
+- *CSS*
+- - TODO Identify violations.
+- *JS*
+- - Identifiers must be `/[a-zA-Z_$][0-9a-zA-Z_$]*/`.
+- - `export` is ignored (everything is implicitly exported).
+- - `import` must be phrased `import { IDENTIFIERS... } from "RELATIVE_PATH";`. (No "as" and no external paths).
+- - String escapes not permitted in import path.

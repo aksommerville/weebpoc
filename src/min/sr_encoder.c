@@ -40,6 +40,21 @@ int sr_encoder_terminate(struct sr_encoder *encoder) {
   return 0;
 }
 
+/* Replace portion.
+ */
+ 
+int sr_encoder_replace(struct sr_encoder *encoder,int p,int c,const void *src,int srcc) {
+  if (!src) srcc=0; else if (srcc<0) { srcc=0; while (((char*)src)[srcc]) srcc++; }
+  if ((p<0)||(c<0)||(p>encoder->c-c)) return -1;
+  if (c!=srcc) {
+    if (sr_encoder_require(encoder,srcc-c)<0) return -1;
+    memmove(((char*)encoder->v)+p+srcc,((char*)encoder->v)+p+c,encoder->c-c-p);
+    encoder->c+=srcc-c;
+  }
+  memcpy(((char*)encoder->v)+p,src,srcc);
+  return 0;
+}
+
 /* Append raw data.
  */
 
