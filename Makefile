@@ -28,6 +28,7 @@ $(ZIP):$(INDEXHTML);$(PRECMD) zip -jqX $@ $^ && echo "$@: $$(stat -c%s $@) bytes
 run:;http-server src/www -c-1
 
 # 'make run-final' to serve the minified single file. Definitely test this thoroughly before shipping!
+# Unlike the loose input files, you can also just load this with `file:` protocol.
 run-final:$(INDEXHTML);http-server out -c-1
 
 clean:;rm -rf mid out

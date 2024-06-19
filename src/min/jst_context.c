@@ -399,6 +399,8 @@ static int jst_minify_internal(struct jst_context *ctx) {
     ctx->pvtoken=token;
     ctx->pvtokenc=tokenc;
   }
+  // Output a newline at the end of each file. It's not needed, but it's cheap I feel goes a long way for traceability.
+  if (sr_encode_u8(ctx->dst,0x0a)<0) return -1;
   return 0;
 }
 

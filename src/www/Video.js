@@ -2,7 +2,8 @@ import { SCREENW, SCREENH } from "./constants.js";
 
 export class Video {
   constructor() {
-    this.canvas = window.document.querySelector("canvas");
+    this.srcbits = document.querySelector("img"); // If the game needs multiple images, you might need to adjust the HTML minifier.
+    this.canvas = document.querySelector("canvas");
     this.canvas.width = SCREENW;
     this.canvas.height = SCREENH;
     this.ctx = this.canvas.getContext("2d");
@@ -16,6 +17,7 @@ export class Video {
     this.ctx.lineTo(SCREENW, SCREENH);
     this.ctx.strokeStyle = "#fff";
     this.ctx.stroke();
+    this.ctx.drawImage(this.srcbits, 12, 8, 48, 42, 100, 100, 48, 42);
   }
 
 }

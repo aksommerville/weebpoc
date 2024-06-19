@@ -23,6 +23,10 @@ TODO: We're not able to replace function parameters. What would that take?
 
 We're not doing any generic tree-shaking. It does happen at the file level -- if you never import a file, it gets dropped.
 
+Assuming that there will be just one `<img>`.
+If you need multiple, you'll have to give them IDs or something.
+That may require a change to the HTML minifier, to preserve the IDs.
+
 ## Standard Violations
 
 No doubt we're going to violate standards in hundreds of ways I don't even notice.

@@ -52,6 +52,6 @@ int minify_js(const char *src,int srcc,int require_closing_tag,const char *refna
     return -2;
   }
   jst_context_cleanup(&jst);
-  if (sr_encode_raw(&min.dst,"\n</script>",-1)<0) return -1;
+  if (sr_encode_raw(&min.dst,"</script>",-1)<0) return -1;
   return result;
 }
