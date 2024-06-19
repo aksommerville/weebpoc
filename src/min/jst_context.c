@@ -143,6 +143,11 @@ static int jst_minify_token(struct jst_context *ctx,const char *token,int tokenc
   if (!token||(tokenc<1)) return -1;
   struct jst_ident *ident=0;
   
+  //XXX This is all kinds of broken. In particular, "direct" identifiers would need their scope tracked, to remove later.
+  // I'm going to back up and simplify a little: JS minification will only be for inlining imports and removing whitespace.
+  goto _verbatim_;
+  //...ha ha ha, it actually got smaller when i stubbed this. :P
+  
   /* Not an identifier, emit verbatim.
    */
   if (!jst_isident(token[0])) goto _verbatim_;
@@ -173,7 +178,11 @@ static int jst_minify_token(struct jst_context *ctx,const char *token,int tokenc
    * Increment (refc) so we know to preserve this alias.
    */
   if (ident&&(ctx->dst->c>=1)&&(((char*)ctx->dst->v)[ctx->dst->c-1]=='.')) {
-    ctx->dst->c--;
+    if ((ctx->dst->c>=2)&&(((char*)ctx->dst->v)[ctx->dst->c-2]=='?')) {
+      // ...unless it's "a?.b", in which case we want "a?.[B]", don't remove the dot.
+    } else {
+      ctx->dst->c--;
+    }
     if (sr_encode_u8(ctx->dst,'[')<0) return -1;
     if (sr_encode_raw(ctx->dst,ident->dst,ident->dstc)<0) return -1;
     if (sr_encode_u8(ctx->dst,']')<0) return -1;

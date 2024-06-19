@@ -12,14 +12,11 @@ Give `min` an HTML template and it produces a single flattened and minified HTML
 
 `<img>` and `<script>` tags can refer to relative files, and get expanded in place.
 
-For the Javascript minifier, I'm using a fairly light touch:
-- Whitespace and comments are eliminated, obviously.
-- Imports are inlined in the order we find them. Don't depend on sequencing of a file's initial run.
-- Most identifiers are preserved but aliased with something shorter.
-- - eg `this.abra.cadabra();` becomes `const [a,b]="abra,cadabra".split(); ... this[a][b]();`.
-- If the first appearance of an identifier is an obvious declaration (const, let, class, function), we replace its name hard.
+The Javascript minifier inlines all imports and removes whitespace.
+That's about it.
+You're on the hook for keeping identifiers small, and keeping things in general small.
 
-TODO: We're not able to replace function parameters. What would that take?
+- [ ] It remains possible to track identifiers and inline simple global constants, I think. That could be a pretty big reduction.
 
 We're not doing any generic tree-shaking. It does happen at the file level -- if you never import a file, it gets dropped.
 

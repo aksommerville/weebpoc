@@ -22,7 +22,7 @@ $(EXE_MIN):$(OFILES_MIN);$(PRECMD) $(LD) -o$@ $^ $(LDPOST)
 
 SRCFILES_WWW:=$(filter src/www/%,$(SRCFILES))
 $(INDEXHTML):$(SRCFILES_WWW) $(EXE_MIN);$(PRECMD) $(EXE_MIN) -o$@ src/www/index.html
-$(ZIP):$(INDEXHTML);$(PRECMD) zip -jqX $@ $^ && echo "$@: $$(stat -c%s $@) bytes"
+$(ZIP):$(INDEXHTML);$(PRECMD) zip -jqX $@ $^ && echo "$@: $$(du -sb src/www | cut -f1) => $$(stat -c%s $(INDEXHTML)) => $$(stat -c%s $@)"
 
 # 'make run' to serve the input files, prefer for high-frequency dev work.
 run:;http-server src/www -c-1
