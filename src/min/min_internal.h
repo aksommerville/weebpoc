@@ -44,6 +44,11 @@ int minify();
 int minify_js(const char *src,int srcc,int require_closing_tag,const char *refname);
 int minify_css(const char *src,int srcc,int require_closing_tag,const char *refname);
 
+/* Produce our wacky text format from a MIDI file, append it to (min.dst).
+ * This does *not* produce the outer HTML tags.
+ */
+int minify_song(const void *src,int srcc,const char *refname);
+
 int lineno(const char *src,int srcc);
 int consume_closing_tag(const char *src,int srcc,const char *name,int namec);
 int resolve_path(char *dst,int dsta,const char *ref,const char *src,int srcc);

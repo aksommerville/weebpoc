@@ -18,11 +18,40 @@ You're on the hook for keeping identifiers small, and keeping things in general 
 
 - [ ] It remains possible to track identifiers and inline simple global constants, I think. That could be a pretty big reduction.
 
+Use comments `/*IGNORE{*/` and `/*}IGNORE*/` to fence portions of code that should be dropped during minification.
+That's needed for the synthesizer, if you want it to work pre-minify too.
+
 We're not doing any generic tree-shaking. It does happen at the file level -- if you never import a file, it gets dropped.
 
 Assuming that there will be just one `<img>`.
 If you need multiple, you'll have to give them IDs or something.
 That may require a change to the HTML minifier, to preserve the IDs.
+
+## Audio
+
+Background music should be sourced from MIDI files.
+Each channel is a distinct hard-coded instrument.
+Aftertouch, pitch wheel, program changes, and control changes are all discarded.
+
+Include each song in the HTML: `<song href="./mySong.mid"></song>`
+
+Running your app from source, you'll need conditional logic to turn MIDI into our format. See src/www/Audio.js.
+
+After minification, the song tags turn into `<song name="mySong">...COMPILED SONG DATA...</song>`
+
+Compiled songs are plain text.
+Whitespace is unused, you must strip it before feeding to the synthesizer.
+
+0x27..0x37 `'()*+,-./01234567` are opcodes.
+0x3f..0x7e are data bytes (0..63).
+
+Starts with one data byte for the tempo: N+1 is ms per tick, 1..64.
+
+Apostophe followed by a data byte is a delay, for N+1 ticks.
+
+Other opcode bytes correspond to one MIDI channel, and indicate one note on that channel.
+`OPCODE NOTEID DURATION` where NOTEID and DURATION are each one data byte.
+NOTEID, add 0x23 for the MIDI note id. Range is B1..D7. (0x23 happens to be the start of GM drums, in case that ever comes up).
 
 ## Standard Violations
 

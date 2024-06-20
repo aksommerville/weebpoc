@@ -200,6 +200,50 @@ static int minify_external_css(const char *href,int hrefc) {
   return err;
 }
 
+/* Convert MIDI to our song format and inline it for a <song> tag.
+ */
+ 
+static int minify_external_song(const char *href,int hrefc) {
+  char path[1024];
+  int pathc=resolve_path(path,sizeof(path),min.srcpath,href,hrefc);
+  if ((pathc<1)||(pathc>=sizeof(path))) {
+    fprintf(stderr,"%s: Failed to resolve song path '%.*s'\n",min.srcpath,hrefc,href);
+    return -2;
+  }
+  char *serial=0;
+  int serialc=file_read(&serial,path);
+  if (serialc<0) {
+    fprintf(stderr,"%s: Failed to read file\n",path);
+    return -2;
+  }
+  const char *name=href;
+  int namec=0;
+  int i=0,counting=1;
+  for (;i<hrefc;i++) {
+    if (href[i]=='/') {
+      name=href+i+1;
+      namec=0;
+      counting=1;
+    } else if (href[i]=='.') {
+      counting=0;
+    } else if (counting) {
+      namec++;
+    }
+  }
+  if (sr_encode_fmt(&min.dst,"<song name=\"%.*s\">\n",namec,name)<0) {
+    free(serial);
+    return -1;
+  }
+  int err=minify_song(serial,serialc,path);
+  free(serial);
+  if (err<0) {
+    if (err!=-2) fprintf(stderr,"%s: Unspecified error converting MIDI file.\n",path);
+    return -2;
+  }
+  if (sr_encode_fmt(&min.dst,"</song>")<0) return -1;
+  return 0;
+}
+
 /* Inline favicon.
  */
 
@@ -323,6 +367,19 @@ static int minify_open(const char *src,int srcc,const char *post,int postc) {
     int err=minify_js(post,postc,1,0);
     if (err<0) return err;
     return err;
+  }
+  
+  if ((tagc==4)&&!memcmp(tag,"song",4)) {
+    // Not allowing finished song tags, though certainly we could, like <script> above.
+    const char *href=0;
+    int hrefc=html_get_attribute(&href,src,srcc,"href",4);
+    if (hrefc<1) {
+      fprintf(stderr,"<song> tag must contain 'href' attribute\n");
+      return -2;
+    }
+    int err=minify_external_song(href,hrefc);
+    if (err<0) return err;
+    return consume_closing_tag(post,postc,"song",4);
   }
 
   // General case: Emit it verbatim and push on the tag stack.

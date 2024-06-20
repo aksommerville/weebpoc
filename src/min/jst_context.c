@@ -388,6 +388,8 @@ static int jst_minify_internal(struct jst_context *ctx) {
     if (tokenc<1) return jst_error(ctx,token,"Failed to measure next token.");
     srcp+=tokenc;
     
+    if (ctx->ignore) continue;
+    
     if ((tokenc==6)&&!memcmp(token,"import",6)) {
       // At "import", inline the referenced file recursively.
       if ((err=jst_import(ctx,src+srcp,srcc-srcp))<0) return jst_error(ctx,token,"Unspecified error resolving import.");
@@ -410,6 +412,8 @@ static int jst_minify_internal(struct jst_context *ctx) {
   }
   // Output a newline at the end of each file. It's not needed, but it's cheap I feel goes a long way for traceability.
   if (sr_encode_u8(ctx->dst,0x0a)<0) return -1;
+  // IGNORE blocks implicitly close at end of file.
+  ctx->ignore=0;
   return 0;
 }
 

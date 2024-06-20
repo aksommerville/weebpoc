@@ -64,6 +64,7 @@ export class Game {
     this.herodx = 0;
     this.herody = 0;
     this.pvstate = 0;
+    this.audio.playSong("gloom_for_company");
   }
   
   updateModel(elapseds, state) {

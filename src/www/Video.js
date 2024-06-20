@@ -14,6 +14,9 @@ export class Video {
     this.ctx.fillStyle = "#888";
     this.ctx.fillRect(0, 0, SCREENW, SCREENH);
   }
+  
+  // Highly stubful... you know what to do
+  // Game assigns itself to Video at construction. (this.game) is guaranteed available during render().
 
   render() {
     this.ctx.fillStyle = "#48f";

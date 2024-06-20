@@ -24,6 +24,7 @@ struct jst_context {
   } *identv;
   int identc,identa;
   struct sr_encoder scratch;
+  int ignore; // While nonzero, drop everything. /*IGNORE{*/ .. /*}IGNORE*/
 };
 
 void jst_context_cleanup(struct jst_context *ctx);

@@ -29,6 +29,9 @@ int jst_measure_space(struct jst_context *ctx,const char *src,int srcc) {
         }
         srcp++;
       }
+      int cmtc=srcp-openp;
+      if ((cmtc==11)&&!memcmp(src+openp,"/*IGNORE{*/",11)) ctx->ignore=1;
+      else if ((cmtc==11)&&!memcmp(src+openp,"/*}IGNORE*/",11)) ctx->ignore=0;
       continue;
     }
     break;
