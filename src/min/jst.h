@@ -19,11 +19,8 @@ struct jst_context {
   struct jst_ident {
     char *src,*dst;
     int srcc,dstc;
-    int refc; // How many times was it output? We'll drop from the declaration if zero.
-    int direct; // No indirection. (dst) is literally the new name. For things we know are locally scoped.
   } *identv;
   int identc,identa;
-  struct sr_encoder scratch;
   int ignore; // While nonzero, drop everything. /*IGNORE{*/ .. /*}IGNORE*/
 };
 

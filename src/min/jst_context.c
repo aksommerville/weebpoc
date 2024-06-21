@@ -21,7 +21,6 @@ void jst_context_cleanup(struct jst_context *ctx) {
     ctx->identc--;
     jst_ident_cleanup(ctx->identv+ctx->identc);
   }
-  sr_encoder_cleanup(&ctx->scratch);
   memset(ctx,0,sizeof(struct jst_context));
 }
 
@@ -68,7 +67,7 @@ static struct jst_ident *jst_ident_search(const struct jst_context *ctx,const ch
   return 0;
 }
 
-static struct jst_ident *jst_ident_new(struct jst_context *ctx,const char *src,int srcc) {
+static struct jst_ident *jst_ident_new_kv(struct jst_context *ctx,const char *src,int srcc,const char *dst,int dstc) {
   if (ctx->identc>=ctx->identa) {
     int na=ctx->identa+128;
     if (na>INT_MAX/sizeof(struct jst_ident)) return 0;
@@ -77,61 +76,28 @@ static struct jst_ident *jst_ident_new(struct jst_context *ctx,const char *src,i
     ctx->identv=nv;
     ctx->identa=na;
   }
-  char tmp[8];
-  int tmpc=identifier_from_sequence(tmp,sizeof(tmp),ctx->identc);
-  if ((tmpc<1)||(tmpc>sizeof(tmp))) return 0;
   char *nsrc=malloc(srcc+1);
   if (!nsrc) return 0;
   memcpy(nsrc,src,srcc);
   nsrc[srcc]=0;
-  char *ndst=malloc(tmpc+1);
+  char *ndst=malloc(dstc+1);
   if (!ndst) { free(nsrc); return 0; }
-  memcpy(ndst,tmp,tmpc);
-  ndst[tmpc]=0;
+  memcpy(ndst,dst,dstc);
+  ndst[dstc]=0;
   struct jst_ident *ident=ctx->identv+ctx->identc++;
   memset(ident,0,sizeof(struct jst_ident));
   ident->src=nsrc;
   ident->srcc=srcc;
   ident->dst=ndst;
-  ident->dstc=tmpc;
+  ident->dstc=dstc;
   return ident;
 }
 
-/* Generate the identifiers-declaration line and insert at the top of output.
- */
- 
-static int jst_declare_identifiers(struct jst_context *ctx) {
-  
-  // Before jumping in, eliminate any unused identifiers.
-  int i=ctx->identc;
-  while (i-->0) {
-    struct jst_ident *ident=ctx->identv+i;
-    if (ident->refc) continue;
-    jst_ident_cleanup(ident);
-    ctx->identc--;
-    memmove(ident,ident+1,sizeof(struct jst_ident)*(ctx->identc-i));
-  }
-  
-  if (ctx->identc<1) return 0;
-  ctx->scratch.c=0;
-  if (sr_encode_raw(&ctx->scratch,"const [",-1)<0) return -1;
-  const struct jst_ident *ident=ctx->identv;
-  for (i=ctx->identc;i-->0;ident++) {
-    if (sr_encode_raw(&ctx->scratch,ident->dst,ident->dstc)<0) return -1;
-    if (i) {
-      if (sr_encode_u8(&ctx->scratch,',')<0) return -1;
-    }
-  }
-  if (sr_encode_raw(&ctx->scratch,"]=\"",-1)<0) return -1;
-  for (ident=ctx->identv,i=ctx->identc;i-->0;ident++) {
-    if (sr_encode_raw(&ctx->scratch,ident->src,ident->srcc)<0) return -1;
-    if (i) {
-      if (sr_encode_u8(&ctx->scratch,',')<0) return -1;
-    }
-  }
-  if (sr_encode_raw(&ctx->scratch,"\".split(',');\n",-1)<0) return -1;
-  if (sr_encoder_replace(ctx->dst,ctx->startp,0,ctx->scratch.v,ctx->scratch.c)<0) return -1;
-  return 0;
+static struct jst_ident *jst_ident_new(struct jst_context *ctx,const char *src,int srcc) {
+  char tmp[8];
+  int tmpc=identifier_from_sequence(tmp,sizeof(tmp),ctx->identc);
+  if ((tmpc<1)||(tmpc>sizeof(tmp))) return 0;
+  return jst_ident_new_kv(ctx,src,srcc,tmp,tmpc);
 }
 
 /* Receive one real token.
@@ -141,53 +107,46 @@ static int jst_declare_identifiers(struct jst_context *ctx) {
  
 static int jst_minify_token(struct jst_context *ctx,const char *token,int tokenc) {
   if (!token||(tokenc<1)) return -1;
-  struct jst_ident *ident=0;
   
-  //XXX This is all kinds of broken. In particular, "direct" identifiers would need their scope tracked, to remove later.
-  // I'm going to back up and simplify a little: JS minification will only be for inlining imports and removing whitespace.
-  goto _verbatim_;
-  //...ha ha ha, it actually got smaller when i stubbed this. :P
-  
-  /* Not an identifier, emit verbatim.
+  /* I often write bytes as "0xNN", 4 characters, and they can definitely use no more than 3 if we rephrase decimal.
    */
-  if (!jst_isident(token[0])) goto _verbatim_;
-  if ((token[0]>='0')&&(token[0]<='9')) goto _verbatim_;
-  if (jst_is_keyword(token,tokenc)) goto _verbatim_;
-  
-  /* Intern the identifier.
-   */
-  if (!(ident=jst_ident_search(ctx,token,tokenc))) {
-    if (!(ident=jst_ident_new(ctx,token,tokenc))) return -1;
-    if ((ctx->pvtokenc==5)&&!memcmp(ctx->pvtoken,"const",5)) ident->direct=1;
-    else if ((ctx->pvtokenc==3)&&!memcmp(ctx->pvtoken,"let",3)) ident->direct=1;
-    else if ((ctx->pvtokenc==5)&&!memcmp(ctx->pvtoken,"class",5)) ident->direct=1;
-    else if ((ctx->pvtokenc==8)&&!memcmp(ctx->pvtoken,"function",8)) ident->direct=1;
+  if ((tokenc>=3)&&!memcmp(token,"0x",2)) {
+    int v;
+    if (sr_int_eval(&v,token,tokenc)>=2) {
+      char tmp[16];
+      int tmpc=sr_decsint_repr(tmp,sizeof(tmp),v);
+      if ((tmpc>0)&&(tmpc<=sizeof(tmp))&&(tmpc<tokenc)) {
+        if (ctx->dst->c&&jst_isident(((char*)ctx->dst->v)[ctx->dst->c-1])&&jst_isident(token[0])) {
+          if (sr_encode_u8(ctx->dst,' ')<0) return -1;
+        }
+        if (sr_encode_raw(ctx->dst,tmp,tmpc)<0) return -1;
+        return 0;
+      }
+    }
   }
   
-  /* If it's "direct", emit the alias instead.
-   * This does not count toward (refc). There's no need to preserve the original token.
-   * But we still need space insertion, so hijack the "_verbatim_" case.
+  /* If it's a fractional literal number, lop off any trailing zeroes.
    */
-  if (ident->direct) {
+  if ((token[0]>='0')&&(token[0]<='9')) {
+    int isdecfloat=1,dot=0;
+    int i=0; for (;i<tokenc;i++) {
+      if (token[i]=='.') { dot=1; continue; }
+      if ((token[i]>='0')&&(token[i]<='9')) continue;
+      isdecfloat=0;
+      break;
+    }
+    if (isdecfloat&&dot) {
+      while (tokenc&&(token[tokenc-1]=='0')) tokenc--;
+      if (tokenc&&(token[tokenc-1]=='.')) tokenc--;
+    }
+  }
+  
+  /* If we've marked this token for inline replacement, do that.
+   */
+  const struct jst_ident *ident=jst_ident_search(ctx,token,tokenc);
+  if (ident) {
     token=ident->dst;
     tokenc=ident->dstc;
-    goto _verbatim_;
-  }
-  
-  /* If it's a known token, and was preceded by dot, remove the dot and replace with "[DST]".
-   * Increment (refc) so we know to preserve this alias.
-   */
-  if (ident&&(ctx->dst->c>=1)&&(((char*)ctx->dst->v)[ctx->dst->c-1]=='.')) {
-    if ((ctx->dst->c>=2)&&(((char*)ctx->dst->v)[ctx->dst->c-2]=='?')) {
-      // ...unless it's "a?.b", in which case we want "a?.[B]", don't remove the dot.
-    } else {
-      ctx->dst->c--;
-    }
-    if (sr_encode_u8(ctx->dst,'[')<0) return -1;
-    if (sr_encode_raw(ctx->dst,ident->dst,ident->dstc)<0) return -1;
-    if (sr_encode_u8(ctx->dst,']')<0) return -1;
-    ident->refc++;
-    return 0;
   }
   
   /* The general case, just emit the identifier.
@@ -356,6 +315,100 @@ static int jst_import(struct jst_context *ctx,const char *src,int srcc) {
   return srcp;
 }
 
+/* Parse a "const" declaration.
+ */
+ 
+static int jst_const(struct jst_context *ctx,const char *src,int srcc) {
+
+  // If the previous token was an open paren, it must be "for (const abc of ...)". Emit "const" and return.
+  if ((ctx->pvtokenc==1)&&(ctx->pvtoken[0]=='(')) {
+    if (sr_encode_raw(ctx->dst,"const",5)<0) return -1;
+    return 0;
+  }
+
+  const char *token;
+  int srcp=0,err,started=0,tokenc;
+  #define NEXT { \
+    if ((err=jst_measure_space(ctx,src+srcp,srcc-srcp))<0) return jst_error(ctx,src+srcp,"Unspecified lexical error."); \
+    srcp+=err; \
+    if (srcp>=srcc) return jst_error(ctx,src+srcp,"Expected ';' to end 'const' declaration."); \
+    token=src+srcp; \
+    tokenc=jst_measure_token(ctx,token,srcc-srcp); \
+    if (tokenc<1) return jst_error(ctx,token,"Failed to measure next token."); \
+    srcp+=tokenc; \
+  }
+  for (;;) {
+  
+    // First token must be an identifier or semicolon.
+    NEXT
+    if ((tokenc==1)&&(token[0]==';')) break;
+    const char *k=token;
+    int kc=tokenc;
+    
+    // Next must be '='.
+    NEXT
+    if ((tokenc!=1)||(token[0]!='=')) return jst_error(ctx,token,"Expected '=' before '%.*s'",tokenc,token);
+    
+    // Next is the value, which can be any expression.
+    // Optimistically assume that it will be one token.
+    NEXT
+    const char *v=token;
+    int vc=tokenc;
+    
+    // Now pull the even nexter token.
+    // If it's comma or semicolon, we can consider inlining the constant.
+    NEXT
+    const char *far=token;
+    int farc=tokenc;
+    if ((farc==1)&&((far[0]==',')||(far[0]==';'))&&(vc<kc)) {
+      struct jst_ident *ident=jst_ident_new_kv(ctx,k,kc,v,vc);
+      if (!ident) return -1;
+      if (far[0]==';') break;
+      continue;
+    }
+    
+    // Emit either "const" or a comma.
+    if (started) {
+      if (sr_encode_u8(ctx->dst,',')<0) return -1;
+    } else {
+      // No need to check for preceding identifier, I think. Start of a statement must have semicolon or '}' behind it.
+      if (sr_encode_raw(ctx->dst,"const ",6)<0) return -1;
+      started=1;
+    }
+    
+    // Emit key, equal, and whatever "v" is.
+    if (sr_encode_raw(ctx->dst,k,kc)<0) return -1;
+    if (sr_encode_u8(ctx->dst,'=')<0) return -1;
+    if (jst_minify_token(ctx,v,vc)<0) return -1;
+    
+    int depth=0;
+    if ((vc==1)&&((v[0]=='(')||(v[0]=='{')||(v[0]=='['))) depth++;
+    
+    // "far", the token after "v", could still be a terminator (if v is longer than k). Check and handle that.
+    // Actually, make a loop of it, and emit "far" until we find the terminator.
+    for (;;) {
+      if (depth&&(farc==1)&&((far[0]==')')||(far[0]=='}')||(far[0]==']'))) {
+        depth--;
+      } else if ((farc==1)&&((far[0]=='(')||(far[0]=='{')||(far[0]=='['))) {
+        depth++;
+      } else if (!depth) {
+        if ((farc==1)&&(far[0]==',')) break;
+        if ((farc==1)&&(far[0]==';')) break;
+      }
+      if (jst_minify_token(ctx,far,farc)<0) return -1;
+      NEXT
+      far=token;
+      farc=tokenc;
+    }
+    if ((farc==1)&&(far[0]==';')) break;
+  }
+  if (started) {
+    if (sr_encode_u8(ctx->dst,';')<0) return -1;
+  }
+  #undef NEXT
+  return srcp;
+}
+
 /* Minify, top level.
  */
 
@@ -371,11 +424,11 @@ int jst_minify(struct sr_encoder *dst,struct jst_context *ctx,const char *src,in
   ctx->refname=refname;
   ctx->pvtokenc=0;
   if ((err=jst_minify_internal(ctx))<0) return err;
-  if ((err=jst_declare_identifiers(ctx))<0) return err;
   return 0;
 }
 
 static int jst_minify_internal(struct jst_context *ctx) {
+  int dstc0=ctx->dst->c;
   const char *src=ctx->src;
   int srcc=ctx->srcc;
   int srcp=0,err;
@@ -398,6 +451,11 @@ static int jst_minify_internal(struct jst_context *ctx) {
     } else if ((tokenc==6)&&!memcmp(token,"export",6)) {
       // "export" is meaningless to us, since we're concatenating all imports.
       
+    } else if ((tokenc==5)&&!memcmp(token,"const",5)) {
+      // Pull out any "const" declarations whose values are scalars smaller than the label; we'll inline them.
+      if ((err=jst_const(ctx,src+srcp,srcc-srcp))<0) return jst_error(ctx,token,"Unspecified error evaluating 'const' declaration.");
+      srcp+=err;
+      
     } else if ((tokenc>=2)&&(token[0]=='`')) {
       // Interpolable strings, we need to enter each "${...}" unit.
       if ((err=jst_minify_interpolable_string(ctx,token,tokenc))<0) return jst_error(ctx,token,"Unspecified error inside string.");
@@ -411,7 +469,9 @@ static int jst_minify_internal(struct jst_context *ctx) {
     ctx->pvtokenc=tokenc;
   }
   // Output a newline at the end of each file. It's not needed, but it's cheap I feel goes a long way for traceability.
-  if (sr_encode_u8(ctx->dst,0x0a)<0) return -1;
+  if (ctx->dst->c>dstc0) { // ...but only if we actually emitted something.
+    if (sr_encode_u8(ctx->dst,0x0a)<0) return -1;
+  }
   // IGNORE blocks implicitly close at end of file.
   ctx->ignore=0;
   return 0;
