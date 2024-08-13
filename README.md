@@ -47,7 +47,7 @@ Whitespace is unused, you must strip it before feeding to the synthesizer.
 
 Starts with one data byte for the tempo: N+1 is ms per tick, 1..64.
 
-Apostophe followed by a data byte is a delay, for N+1 ticks.
+Apostrophe followed by a data byte is a delay, for N+1 ticks.
 
 Other opcode bytes correspond to one MIDI channel, and indicate one note on that channel.
 `OPCODE NOTEID DURATION` where NOTEID and DURATION are each one data byte.
